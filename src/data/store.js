@@ -660,10 +660,10 @@ async function getMonthlyStats(year, month) {
 }
 
 async function getProjectTimelinessRank({ fromDate, toDate } = {}) {
-  const where = ['status = \'COMPLETED\''];
+  const where = ['t.status = \'COMPLETED\''];
   const params = [];
-  if (fromDate) { where.push('completed_at >= ?'); params.push(fromDate); }
-  if (toDate) { where.push('completed_at <= ?'); params.push(toDate); }
+  if (fromDate) { where.push('t.completed_at >= ?'); params.push(fromDate); }
+  if (toDate) { where.push('t.completed_at <= ?'); params.push(toDate); }
   const clause = `WHERE ${where.join(' AND ')}`;
   const [rows] = await pool.query(
     `SELECT

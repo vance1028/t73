@@ -117,12 +117,10 @@ async function completeTask(taskId, inspectionId) {
   const task = await store.getInspectionTask(taskId);
   if (!task) throw new Error('检查任务不存在');
 
-  const now = new Date().toISOString();
-
   await store.updateInspectionTask(taskId, {
     status: 'COMPLETED',
     currentInspectionId: inspectionId,
-    completedAt: now,
+    completedAt: new Date(),
   });
 
   await store.clearAlertsForTask(taskId, 'INSPECTION_COMPLETED');

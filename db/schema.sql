@@ -103,10 +103,10 @@ CREATE TABLE IF NOT EXISTS inspection_tasks (
     KEY idx_task_status (status),
     KEY idx_task_type (inspection_type),
     CONSTRAINT fk_task_project FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE,
-    CONSTRAINT fk_task_rule FOREIGN KEY (schedule_rule_id) REFERENCES inspection_schedule_rules (id),
-    CONSTRAINT fk_task_last_insp FOREIGN KEY (last_inspection_id) REFERENCES inspections (id),
-    CONSTRAINT fk_task_current_insp FOREIGN KEY (current_inspection_id) REFERENCES inspections (id),
-    CONSTRAINT fk_task_assign FOREIGN KEY (assigned_to) REFERENCES users (id)
+    CONSTRAINT fk_task_rule FOREIGN KEY (schedule_rule_id) REFERENCES inspection_schedule_rules (id) ON DELETE SET NULL,
+    CONSTRAINT fk_task_last_insp FOREIGN KEY (last_inspection_id) REFERENCES inspections (id) ON DELETE SET NULL,
+    CONSTRAINT fk_task_current_insp FOREIGN KEY (current_inspection_id) REFERENCES inspections (id) ON DELETE SET NULL,
+    CONSTRAINT fk_task_assign FOREIGN KEY (assigned_to) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 检查预警
