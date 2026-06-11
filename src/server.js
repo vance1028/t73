@@ -1,8 +1,9 @@
 'use strict';
 
 const { createApp } = require('./app');
-const { waitForDb } = require('./db');
+const { waitForDb, close } = require('./db');
 const store = require('./data/store');
+const scheduler = require('./scheduler');
 
 const PORT = process.env.PORT || 5070;
 
@@ -16,9 +17,28 @@ async function main() {
   }
 
   const app = createApp();
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     // eslint-disable-next-line no-console
     console.log(`人防工程管理平台 API 已启动: http://localhost:${PORT}`);
+    if (process.env.SCHEDULER_ENABLED !== 'false') {
+      scheduler.start();
+    }
+  });
+
+  process.on('SIGTERM', async () => {
+    console.log('收到 SIGTERM 信号，正在关闭...');
+    scheduler.stop();
+    server.close();
+    await close();
+    process.exit(0);
+  });
+
+  process.on('SIGINT', async () => {
+    console.log('收到 SIGINT 信号，正在关闭...');
+    scheduler.stop();
+    server.close();
+    await close();
+    process.exit(0);
   });
 }
 

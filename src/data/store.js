@@ -76,13 +76,66 @@ function mapInspection(r) {
   };
 }
 
+function mapScheduleRule(r) {
+  if (!r) return null;
+  return {
+    id: r.id,
+    inspectionType: r.inspection_type,
+    projectType: r.project_type,
+    protectionLevel: r.protection_level,
+    cycleDays: r.cycle_days,
+    warningDays: r.warning_days,
+    enabled: Boolean(r.enabled),
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+function mapInspectionTask(r) {
+  if (!r) return null;
+  return {
+    id: r.id,
+    projectId: r.project_id,
+    inspectionType: r.inspection_type,
+    scheduleRuleId: r.schedule_rule_id,
+    lastInspectionId: r.last_inspection_id,
+    lastInspectDate: r.last_inspect_date,
+    dueDate: r.due_date,
+    status: r.status,
+    assignedTo: r.assigned_to,
+    currentInspectionId: r.current_inspection_id,
+    generatedAt: r.generated_at,
+    completedAt: r.completed_at,
+  };
+}
+
+function mapInspectionAlert(r) {
+  if (!r) return null;
+  return {
+    id: r.id,
+    taskId: r.task_id,
+    projectId: r.project_id,
+    inspectionType: r.inspection_type,
+    dueDate: r.due_date,
+    alertLevel: r.alert_level,
+    alertDate: r.alert_date,
+    status: r.status,
+    acknowledgedBy: r.acknowledged_by,
+    acknowledgedAt: r.acknowledged_at,
+    clearedAt: r.cleared_at,
+    clearedReason: r.cleared_reason,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
 /* --------------------------- 初始化/重置 --------------------------- */
 
 async function seed() {
   const conn = await pool.getConnection();
   try {
     await conn.query('SET FOREIGN_KEY_CHECKS = 0');
-    for (const t of ['inspections', 'equipments', 'projects', 'users']) {
+    for (const t of ['inspection_alerts', 'inspection_tasks', 'inspection_schedule_rules', 'inspections', 'equipments', 'projects', 'users']) {
       await conn.query(`TRUNCATE TABLE ${t}`);
     }
     await conn.query('SET FOREIGN_KEY_CHECKS = 1');
@@ -115,11 +168,79 @@ async function seed() {
     );
 
     await conn.query(
-      `INSERT INTO inspections (project_id, inspector_id, inspect_date, type, result, issues) VALUES
-        (1, 3, '2026-05-10', 'ROUTINE', 'PASS', ''),
-        (2, 3, '2026-05-12', 'ROUTINE', 'FAIL', '给排水泵故障，需更换'),
-        (3, 3, '2026-04-20', 'SPECIAL', 'FAIL', '滤毒设备老化，建议大修'),
-        (1, 3, '2026-06-01', 'ROUTINE', 'PASS', '')`,
+      `INSERT INTO inspections (id, project_id, inspector_id, inspect_date, type, result, issues) VALUES
+        (1, 1, 3, '2026-05-10', 'ROUTINE', 'PASS', ''),
+        (2, 2, 3, '2026-05-12', 'ROUTINE', 'FAIL', '给排水泵故障，需更换'),
+        (3, 3, 3, '2026-04-20', 'SPECIAL', 'FAIL', '滤毒设备老化，建议大修'),
+        (4, 1, 3, '2026-06-01', 'ROUTINE', 'PASS', ''),
+        (5, 3, 3, '2026-03-15', 'ROUTINE', 'PASS', ''),
+        (6, 4, 3, '2026-05-20', 'ROUTINE', 'PASS', ''),
+        (7, 1, 2, '2026-03-01', 'QUARTERLY', 'PASS', ''),
+        (8, 2, 2, '2026-03-05', 'QUARTERLY', 'PASS', ''),
+        (9, 1, 2, '2025-12-01', 'ANNUAL', 'PASS', '')`,
+    );
+
+    await conn.query(
+      `INSERT INTO inspection_schedule_rules (id, inspection_type, project_type, protection_level, cycle_days, warning_days, enabled) VALUES
+        (1, 'ROUTINE', NULL, NULL, 30, 7, 1),
+        (2, 'ROUTINE', 'SINGLE', '5', 20, 10, 1),
+        (3, 'ROUTINE', 'COMBINED', '6', 25, 7, 1),
+        (4, 'QUARTERLY', NULL, NULL, 90, 15, 1),
+        (5, 'QUARTERLY', NULL, '5', 60, 20, 1),
+        (6, 'ANNUAL', NULL, NULL, 365, 30, 1),
+        (7, 'ANNUAL', NULL, '5', 365, 45, 1),
+        (8, 'SPECIAL', NULL, NULL, 180, 10, 1)`,
+    );
+
+    const today = new Date(2026, 5, 11);
+    const fmt = (d) => d.toISOString().split('T')[0];
+    const daysFromToday = (n) => { const d = new Date(today); d.setDate(today.getDate() + n); return fmt(d); };
+    const daysAgo = (n) => { const d = new Date(today); d.setDate(today.getDate() - n); return fmt(d); };
+
+    await conn.query(
+      `INSERT INTO inspection_tasks (id, project_id, inspection_type, schedule_rule_id, last_inspection_id, last_inspect_date, due_date, status, assigned_to) VALUES
+        (1, 1, 'ROUTINE', 3, 4, '2026-06-01', ?, 'PENDING', 3),
+        (2, 2, 'ROUTINE', 1, 2, '2026-05-12', ?, 'PENDING', 3),
+        (3, 3, 'ROUTINE', 2, 5, '2026-03-15', ?, 'PENDING', 3),
+        (4, 4, 'ROUTINE', 1, 6, '2026-05-20', ?, 'PENDING', 3),
+        (5, 1, 'QUARTERLY', 4, 7, '2026-03-01', ?, 'PENDING', 2),
+        (6, 2, 'QUARTERLY', 4, 8, '2026-03-05', ?, 'PENDING', 2),
+        (7, 3, 'QUARTERLY', 5, NULL, NULL, ?, 'PENDING', 2),
+        (8, 1, 'ANNUAL', 7, 9, '2025-12-01', ?, 'PENDING', 2),
+        (9, 4, 'QUARTERLY', 4, NULL, NULL, ?, 'PENDING', 2),
+        (10, 3, 'ANNUAL', 7, NULL, NULL, ?, 'PENDING', 2),
+        (11, 4, 'ANNUAL', 6, NULL, NULL, ?, 'PENDING', 2)`,
+      [
+        daysFromToday(20),
+        daysAgo(30),
+        daysAgo(15),
+        daysFromToday(9),
+        daysFromToday(19),
+        daysAgo(7),
+        daysFromToday(50),
+        daysAgo(190),
+        daysFromToday(60),
+        daysFromToday(80),
+        daysFromToday(200),
+      ],
+    );
+
+    await conn.query(
+      `INSERT INTO inspection_alerts (task_id, project_id, inspection_type, due_date, alert_level, alert_date, status) VALUES
+        (2, 2, 'ROUTINE', ?, 'OVERDUE', ?, 'ACTIVE'),
+        (3, 3, 'ROUTINE', ?, 'OVERDUE', ?, 'ACTIVE'),
+        (6, 2, 'QUARTERLY', ?, 'OVERDUE', ?, 'ACTIVE'),
+        (8, 1, 'ANNUAL', ?, 'CRITICAL', ?, 'ACTIVE'),
+        (4, 4, 'ROUTINE', ?, 'UPCOMING', ?, 'ACTIVE'),
+        (1, 1, 'ROUTINE', ?, 'UPCOMING', ?, 'ACTIVE')`,
+      [
+        daysAgo(30), daysAgo(28),
+        daysAgo(15), daysAgo(13),
+        daysAgo(7), daysAgo(5),
+        daysAgo(190), daysAgo(60),
+        daysFromToday(9), daysFromToday(2),
+        daysFromToday(20), daysFromToday(13),
+      ],
     );
   } finally {
     conn.release();
@@ -257,10 +378,329 @@ async function createInspection(i) {
   return mapInspection(rows[0]);
 }
 
+async function getLastInspectionByType(projectId, inspectionType) {
+  const [rows] = await pool.query(
+    'SELECT * FROM inspections WHERE project_id = ? AND type = ? ORDER BY inspect_date DESC, id DESC LIMIT 1',
+    [projectId, inspectionType],
+  );
+  return mapInspection(rows[0]);
+}
+
+/* ----------------------------- 检查计划规则 ----------------------------- */
+
+async function listScheduleRules({ inspectionType, enabled } = {}) {
+  const where = [];
+  const params = [];
+  if (inspectionType !== undefined) { where.push('inspection_type = ?'); params.push(inspectionType); }
+  if (enabled !== undefined) { where.push('enabled = ?'); params.push(enabled ? 1 : 0); }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const [rows] = await pool.query(`SELECT * FROM inspection_schedule_rules ${clause} ORDER BY id`, params);
+  return rows.map(mapScheduleRule);
+}
+
+async function getScheduleRule(id) {
+  const [rows] = await pool.query('SELECT * FROM inspection_schedule_rules WHERE id = ?', [id]);
+  return mapScheduleRule(rows[0]);
+}
+
+async function findMatchingScheduleRule(inspectionType, projectType, protectionLevel) {
+  const [rows] = await pool.query(
+    `SELECT * FROM inspection_schedule_rules
+     WHERE inspection_type = ? AND enabled = 1
+     ORDER BY (project_type = ? AND protection_level = ?) DESC,
+              (project_type = ?) DESC,
+              (protection_level = ?) DESC,
+              (project_type IS NULL AND protection_level IS NULL) DESC
+     LIMIT 1`,
+    [inspectionType, projectType, protectionLevel, projectType, protectionLevel],
+  );
+  return mapScheduleRule(rows[0]);
+}
+
+async function createScheduleRule(r) {
+  const [res] = await pool.query(
+    `INSERT INTO inspection_schedule_rules (inspection_type, project_type, protection_level, cycle_days, warning_days, enabled)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [r.inspectionType, r.projectType || null, r.protectionLevel || null, r.cycleDays, r.warningDays || 7, r.enabled !== false ? 1 : 0],
+  );
+  return getScheduleRule(res.insertId);
+}
+
+async function updateScheduleRule(id, patch) {
+  const map = {
+    inspectionType: 'inspection_type',
+    projectType: 'project_type',
+    protectionLevel: 'protection_level',
+    cycleDays: 'cycle_days',
+    warningDays: 'warning_days',
+    enabled: 'enabled',
+  };
+  const sets = [];
+  const params = [];
+  for (const [k, col] of Object.entries(map)) {
+    if (patch[k] !== undefined) {
+      sets.push(`${col} = ?`);
+      params.push(col === 'enabled' ? (patch[k] ? 1 : 0) : patch[k]);
+    }
+  }
+  if (sets.length) {
+    sets.push('updated_at = CURRENT_TIMESTAMP(3)');
+    params.push(id);
+    await pool.query(`UPDATE inspection_schedule_rules SET ${sets.join(', ')} WHERE id = ?`, params);
+  }
+  return getScheduleRule(id);
+}
+
+async function deleteScheduleRule(id) {
+  const [r] = await pool.query('DELETE FROM inspection_schedule_rules WHERE id = ?', [id]);
+  return r.affectedRows > 0;
+}
+
+/* ----------------------------- 检查任务 ----------------------------- */
+
+async function listInspectionTasks({ projectId, status, inspectionType, dueFrom, dueTo } = {}) {
+  const where = [];
+  const params = [];
+  if (projectId !== undefined) { where.push('project_id = ?'); params.push(projectId); }
+  if (status !== undefined) { where.push('status = ?'); params.push(status); }
+  if (inspectionType !== undefined) { where.push('inspection_type = ?'); params.push(inspectionType); }
+  if (dueFrom !== undefined) { where.push('due_date >= ?'); params.push(dueFrom); }
+  if (dueTo !== undefined) { where.push('due_date <= ?'); params.push(dueTo); }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const [rows] = await pool.query(`SELECT * FROM inspection_tasks ${clause} ORDER BY due_date, id`, params);
+  return rows.map(mapInspectionTask);
+}
+
+async function listInspectionTasksWithProject({ status, dueFrom, dueTo } = {}) {
+  const where = ['t.status = ?'];
+  const params = [status || 'PENDING'];
+  if (dueFrom !== undefined) { where.push('t.due_date >= ?'); params.push(dueFrom); }
+  if (dueTo !== undefined) { where.push('t.due_date <= ?'); params.push(dueTo); }
+  const clause = `WHERE ${where.join(' AND ')}`;
+  const [rows] = await pool.query(
+    `SELECT t.*, p.name as project_name, p.code as project_code, p.protection_level, p.type as project_type
+     FROM inspection_tasks t
+     JOIN projects p ON t.project_id = p.id
+     ${clause}
+     ORDER BY t.due_date, t.id`,
+    params,
+  );
+  return rows.map((r) => ({
+    ...mapInspectionTask(r),
+    projectName: r.project_name,
+    projectCode: r.project_code,
+    protectionLevel: r.protection_level,
+    projectType: r.project_type,
+  }));
+}
+
+async function getInspectionTask(id) {
+  const [rows] = await pool.query('SELECT * FROM inspection_tasks WHERE id = ?', [id]);
+  return mapInspectionTask(rows[0]);
+}
+
+async function findPendingTask(projectId, inspectionType) {
+  const [rows] = await pool.query(
+    `SELECT * FROM inspection_tasks
+     WHERE project_id = ? AND inspection_type = ? AND status = 'PENDING'
+     ORDER BY due_date DESC, id DESC
+     LIMIT 1`,
+    [projectId, inspectionType],
+  );
+  return mapInspectionTask(rows[0]);
+}
+
+async function createInspectionTask(t) {
+  const [res] = await pool.query(
+    `INSERT INTO inspection_tasks (project_id, inspection_type, schedule_rule_id, last_inspection_id, last_inspect_date, due_date, status, assigned_to)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [t.projectId, t.inspectionType, t.scheduleRuleId || null, t.lastInspectionId || null, t.lastInspectDate || null, t.dueDate, t.status || 'PENDING', t.assignedTo || null],
+  );
+  return getInspectionTask(res.insertId);
+}
+
+async function updateInspectionTask(id, patch) {
+  const map = {
+    status: 'status',
+    assignedTo: 'assigned_to',
+    currentInspectionId: 'current_inspection_id',
+    completedAt: 'completed_at',
+  };
+  const sets = [];
+  const params = [];
+  for (const [k, col] of Object.entries(map)) {
+    if (patch[k] !== undefined) { sets.push(`${col} = ?`); params.push(patch[k]); }
+  }
+  if (sets.length) {
+    params.push(id);
+    await pool.query(`UPDATE inspection_tasks SET ${sets.join(', ')} WHERE id = ?`, params);
+  }
+  return getInspectionTask(id);
+}
+
+/* ----------------------------- 检查预警 ----------------------------- */
+
+async function listAlerts({ projectId, status, alertLevel, onlyUnacknowledged } = {}) {
+  const where = [];
+  const params = [];
+  if (projectId !== undefined) { where.push('project_id = ?'); params.push(projectId); }
+  if (status !== undefined) { where.push('status = ?'); params.push(status); }
+  if (alertLevel !== undefined) { where.push('alert_level = ?'); params.push(alertLevel); }
+  if (onlyUnacknowledged) { where.push('acknowledged_by IS NULL'); }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const [rows] = await pool.query(`SELECT * FROM inspection_alerts ${clause} ORDER BY alert_date DESC, id DESC`, params);
+  return rows.map(mapInspectionAlert);
+}
+
+async function listAlertsWithProject({ status, alertLevel } = {}) {
+  const where = ['a.status = ?'];
+  const params = [status || 'ACTIVE'];
+  if (alertLevel !== undefined) { where.push('a.alert_level = ?'); params.push(alertLevel); }
+  const clause = `WHERE ${where.join(' AND ')}`;
+  const [rows] = await pool.query(
+    `SELECT a.*, p.name as project_name, p.code as project_code, u.name as inspector_name
+     FROM inspection_alerts a
+     JOIN projects p ON a.project_id = p.id
+     LEFT JOIN inspection_tasks t ON a.task_id = t.id
+     LEFT JOIN users u ON t.assigned_to = u.id
+     ${clause}
+     ORDER BY a.alert_date DESC, a.id DESC`,
+    params,
+  );
+  return rows.map((r) => ({
+    ...mapInspectionAlert(r),
+    projectName: r.project_name,
+    projectCode: r.project_code,
+    inspectorName: r.inspector_name,
+  }));
+}
+
+async function getAlert(id) {
+  const [rows] = await pool.query('SELECT * FROM inspection_alerts WHERE id = ?', [id]);
+  return mapInspectionAlert(rows[0]);
+}
+
+async function findActiveAlertByTaskAndLevel(taskId, alertLevel, alertDate) {
+  const [rows] = await pool.query(
+    'SELECT * FROM inspection_alerts WHERE task_id = ? AND alert_level = ? AND alert_date = ? AND status = \'ACTIVE\'',
+    [taskId, alertLevel, alertDate],
+  );
+  return mapInspectionAlert(rows[0]);
+}
+
+async function findHighestActiveAlertForTask(taskId) {
+  const [rows] = await pool.query(
+    `SELECT * FROM inspection_alerts
+     WHERE task_id = ? AND status = 'ACTIVE'
+     ORDER BY FIELD(alert_level, 'CRITICAL', 'OVERDUE', 'DUE', 'UPCOMING'), alert_date DESC
+     LIMIT 1`,
+    [taskId],
+  );
+  return mapInspectionAlert(rows[0]);
+}
+
+async function createAlert(a) {
+  const [res] = await pool.query(
+    `INSERT INTO inspection_alerts (task_id, project_id, inspection_type, due_date, alert_level, alert_date, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       alert_level = VALUES(alert_level),
+       updated_at = CURRENT_TIMESTAMP(3)`,
+    [a.taskId, a.projectId, a.inspectionType, a.dueDate, a.alertLevel, a.alertDate, a.status || 'ACTIVE'],
+  );
+  if (res.insertId) {
+    return getAlert(res.insertId);
+  }
+  return findActiveAlertByTaskAndLevel(a.taskId, a.alertLevel, a.alertDate);
+}
+
+async function acknowledgeAlert(id, userId) {
+  await pool.query(
+    'UPDATE inspection_alerts SET acknowledged_by = ?, acknowledged_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3) WHERE id = ?',
+    [userId, id],
+  );
+  return getAlert(id);
+}
+
+async function clearAlertsForTask(taskId, reason = 'INSPECTION_COMPLETED') {
+  const [r] = await pool.query(
+    'UPDATE inspection_alerts SET status = \'CLEARED\', cleared_at = CURRENT_TIMESTAMP(3), cleared_reason = ?, updated_at = CURRENT_TIMESTAMP(3) WHERE task_id = ? AND status = \'ACTIVE\'',
+    [reason, taskId],
+  );
+  return r.affectedRows;
+}
+
+async function escalateAlert(id, newLevel) {
+  await pool.query(
+    'UPDATE inspection_alerts SET alert_level = ?, updated_at = CURRENT_TIMESTAMP(3) WHERE id = ?',
+    [newLevel, id],
+  );
+  return getAlert(id);
+}
+
+/* ----------------------------- 看板统计 ----------------------------- */
+
+async function getMonthlyStats(year, month) {
+  const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+  const [rows] = await pool.query(
+    `SELECT
+       SUM(CASE WHEN status = 'COMPLETED' AND completed_at BETWEEN ? AND ? THEN 1 ELSE 0 END) as completed,
+       SUM(CASE WHEN status = 'PENDING' AND due_date BETWEEN ? AND ? THEN 1 ELSE 0 END) as due,
+       SUM(CASE WHEN status = 'PENDING' AND due_date < ? THEN 1 ELSE 0 END) as overdue
+     FROM inspection_tasks`,
+    [startDate, endDate, startDate, endDate, startDate],
+  );
+  const r = rows[0];
+  return {
+    completed: Number(r.completed) || 0,
+    due: Number(r.due) || 0,
+    overdue: Number(r.overdue) || 0,
+  };
+}
+
+async function getProjectTimelinessRank({ fromDate, toDate } = {}) {
+  const where = ['status = \'COMPLETED\''];
+  const params = [];
+  if (fromDate) { where.push('completed_at >= ?'); params.push(fromDate); }
+  if (toDate) { where.push('completed_at <= ?'); params.push(toDate); }
+  const clause = `WHERE ${where.join(' AND ')}`;
+  const [rows] = await pool.query(
+    `SELECT
+       p.id as project_id,
+       p.name as project_name,
+       p.code as project_code,
+       COUNT(*) as total_tasks,
+       SUM(CASE WHEN DATE(t.completed_at) <= t.due_date THEN 1 ELSE 0 END) as on_time_count,
+       ROUND(
+         SUM(CASE WHEN DATE(t.completed_at) <= t.due_date THEN 1 ELSE 0 END) * 100.0 / COUNT(*),
+         2
+       ) as timeliness_rate
+     FROM inspection_tasks t
+     JOIN projects p ON t.project_id = p.id
+     ${clause}
+     GROUP BY p.id, p.name, p.code
+     ORDER BY timeliness_rate ASC, total_tasks DESC`,
+    params,
+  );
+  return rows.map((r) => ({
+    projectId: r.project_id,
+    projectName: r.project_name,
+    projectCode: r.project_code,
+    totalTasks: Number(r.total_tasks),
+    onTimeCount: Number(r.on_time_count),
+    timelinessRate: Number(r.timeliness_rate),
+  }));
+}
+
 module.exports = {
   seed, isEmpty,
   findUserByUsername, getUser, listUsers, createUser,
   listProjects, getProject, findProjectByCode, createProject, updateProject, deleteProject,
   listEquipments, createEquipment,
-  listInspections, createInspection,
+  listInspections, createInspection, getLastInspectionByType,
+  listScheduleRules, getScheduleRule, findMatchingScheduleRule, createScheduleRule, updateScheduleRule, deleteScheduleRule,
+  listInspectionTasks, listInspectionTasksWithProject, getInspectionTask, findPendingTask, createInspectionTask, updateInspectionTask,
+  listAlerts, listAlertsWithProject, getAlert, findActiveAlertByTaskAndLevel, findHighestActiveAlertForTask, createAlert, acknowledgeAlert, clearAlertsForTask, escalateAlert,
+  getMonthlyStats, getProjectTimelinessRank,
 };

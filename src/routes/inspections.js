@@ -2,13 +2,14 @@
 
 const express = require('express');
 const store = require('../data/store');
+const taskService = require('../services/inspectionTaskService');
 const { authRequired, requireRole } = require('../auth');
 const { sendError, toPositiveInt, isValidDate } = require('../utils/http');
 
 const router = express.Router();
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
-const VALID_TYPE = ['ROUTINE', 'SPECIAL', 'ANNUAL'];
+const VALID_TYPE = ['ROUTINE', 'QUARTERLY', 'ANNUAL', 'SPECIAL'];
 const VALID_RESULT = ['PASS', 'FAIL'];
 
 router.use(authRequired);
@@ -32,23 +33,34 @@ router.post('/', requireRole('ADMIN', 'MANAGER', 'INSPECTOR'), wrap(async (req, 
   if (pid === null) return sendError(res, 400, '必须指定有效的工程 ID');
   if (!(await store.getProject(pid))) return sendError(res, 400, '人防工程不存在');
   if (!isValidDate(b.inspectDate)) return sendError(res, 400, '检查日期格式必须为 YYYY-MM-DD');
-  if (b.type !== undefined && !VALID_TYPE.includes(b.type)) {
+  const inspectionType = b.type || 'ROUTINE';
+  if (!VALID_TYPE.includes(inspectionType)) {
     return sendError(res, 400, `检查类型只能是 ${VALID_TYPE.join(' / ')}`);
   }
   if (b.result !== undefined && !VALID_RESULT.includes(b.result)) {
     return sendError(res, 400, `检查结果只能是 ${VALID_RESULT.join(' / ')}`);
   }
-  // 检查人默认取当前登录用户
   const inspectorId = b.inspectorId ? toPositiveInt(b.inspectorId) : req.user.id;
   const rec = await store.createInspection({
     projectId: pid,
     inspectorId,
     inspectDate: b.inspectDate,
-    type: b.type || 'ROUTINE',
+    type: inspectionType,
     result: b.result || 'PASS',
     issues: typeof b.issues === 'string' ? b.issues : '',
   });
-  res.status(201).json({ data: rec });
+
+  const pendingTask = await store.findPendingTask(pid, inspectionType);
+  let completedTask = null;
+  if (pendingTask) {
+    completedTask = await taskService.completeTask(pendingTask.id, rec.id);
+  }
+
+  res.status(201).json({
+    data: rec,
+    taskCompleted: !!completedTask,
+    nextTask: completedTask && (await store.findPendingTask(pid, inspectionType)),
+  });
 }));
 
 module.exports = router;
